@@ -29,13 +29,12 @@
       <div class="card-body">
         <h3 class="card-title mb-3">Edit News</h3>
 
-        <!-- Meta info -->
         <p class="text-muted mb-4">
           <strong>Author:</strong> <span id="authorName">—</span>
         </p>
 
         <!-- Edit form -->
-        <form id="editForm" class="needs-validation" novalidate>
+        <form id="editForm" novalidate>
           <div class="mb-3">
             <label for="title" class="form-label">Title</label>
             <input id="title" type="text" class="form-control" required />
@@ -55,7 +54,6 @@
           </div>
         </form>
 
-        <!-- Not allowed message -->
         <div id="notAllowed" class="alert alert-warning d-none mt-3" role="alert">
           You are not allowed to edit this news because you are not the author.
         </div>
@@ -75,12 +73,11 @@
     const alertBox = document.getElementById("alertBox");
     const authorNameEl = document.getElementById("authorName");
 
-    // Helpers
     function showAlert(type, message) {
       alertBox.innerHTML = `
         <div class="alert alert-${type} alert-dismissible fade show" role="alert">
           ${message}
-          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
       `;
     }
@@ -89,53 +86,31 @@
       window.location.href = "news.html";
     }
 
-    // Load news and check permission
     async function loadNews() {
-      if (!id) {
-        showAlert("danger", "Missing news ID.");
-        editForm.classList.add("d-none");
-        return;
-      }
-      if (!loggedUserId) {
-        showAlert("warning", "You must be logged in to edit.");
-        editForm.classList.add("d-none");
-        return;
-      }
-
       try {
         const res = await fetch(`http://localhost:3000/news/${id}`);
-        if (!res.ok) throw new Error("Failed to fetch news.");
         const news = await res.json();
 
-        // Resolve author name
         const authorRes = await fetch(`http://localhost:3000/users/${news.author_id}`);
-        const author = authorRes.ok ? await authorRes.json() : { name: "Unknown" };
+        const author = await authorRes.json();
         authorNameEl.textContent = author.name;
 
-        // Permission check
-        const isAuthor = news.author_id === loggedUserId;
-        if (!isAuthor) {
+        if (news.author_id !== loggedUserId) {
           editForm.classList.add("d-none");
           notAllowedBox.classList.remove("d-none");
           return;
         }
 
-        // Prefill form
-        titleInput.value = news.title || "";
-        bodyInput.value = news.body || "";
+        titleInput.value = news.title;
+        bodyInput.value = news.body;
 
-        // Attach submit handler with current news
         editForm.addEventListener("submit", (e) => handleSubmit(e, news));
-
       } catch (err) {
-        console.error(err);
-        showAlert("danger", "Unable to load news. Please try again.");
-        editForm.classList.add("d-none");
+        showAlert("danger", "Unable to load news.");
       }
     }
 
-    // Validation rules: title non-empty, body >= 20 chars
-    function isValidInput() {
+    function validateForm() {
       let valid = true;
 
       if (!titleInput.value.trim()) {
@@ -157,7 +132,7 @@
 
     async function handleSubmit(e, news) {
       e.preventDefault();
-      if (!isValidInput()) return;
+      if (!validateForm()) return;
 
       const payload = {
         title: titleInput.value.trim(),
@@ -173,10 +148,9 @@
 
         if (!res.ok) throw new Error("Failed to save changes.");
         showAlert("success", "News updated successfully.");
-        setTimeout(() => (window.location.href = "news.html"), 800);
+        setTimeout(() => (window.location.href = "news.html"), 1000);
       } catch (err) {
-        console.error(err);
-        showAlert("danger", "Error saving changes. Please try again.");
+        showAlert("danger", "Error saving changes.");
       }
     }
 
