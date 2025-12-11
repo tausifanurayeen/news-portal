@@ -3,9 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <title>News List</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="bg-light">
+  <!-- Navbar -->
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container-fluid">
       <a class="navbar-brand" href="#">News Portal</a>
@@ -14,45 +16,133 @@
     </div>
   </nav>
 
+  <!-- Search + News List -->
   <div class="container mt-4">
+    <!-- Search bar -->
+    <div class="input-group mb-3">
+      <input type="text" id="searchInput" class="form-control" placeholder="Search news by title...">
+      <button class="btn btn-outline-secondary" onclick="filterNews()">Search</button>
+    </div>
+
+    <!-- News list -->
     <div id="newsList" class="row"></div>
+
+    <!-- Pagination -->
+    <nav>
+      <ul class="pagination justify-content-center mt-4" id="pagination"></ul>
+    </nav>
   </div>
 
   <script>
     const loggedUserId = localStorage.getItem("loggedInUser");
+    let allNews = [];
+    let filteredNews = [];
+    let currentPage = 1;
+    const itemsPerPage = 4;
 
+    // Show logged-in user
     fetch(`http://localhost:3000/users/${loggedUserId}`)
       .then(res => res.json())
       .then(user => document.getElementById("loggedUser").textContent = user.name);
 
+    // Fetch all news
     fetch("http://localhost:3000/news")
       .then(res => res.json())
       .then(newsItems => {
-        const container = document.getElementById("newsList");
-        newsItems.forEach(news => {
-          const col = document.createElement("div");
-          col.className = "col-md-6 mb-3";
-          col.innerHTML = `
-            <div class="card shadow">
-              <div class="card-body">
-                <h5 class="card-title">${news.title}</h5>
-                <p class="card-text">By <span id="author-${news.id}"></span></p>
-                <button class="btn btn-primary btn-sm" onclick="viewDetails(${news.id})">View Details</button>
-                ${news.author_id == loggedUserId ? `
-                  <button class="btn btn-warning btn-sm" onclick="editNews(${news.id})">Edit</button>
-                  <button class="btn btn-danger btn-sm" onclick="deleteNews(${news.id})">Delete</button>
-                ` : ""}
-              </div>
-            </div>
-          `;
-          container.appendChild(col);
-
-          fetch(`http://localhost:3000/users/${news.author_id}`)
-            .then(res => res.json())
-            .then(author => document.getElementById(`author-${news.id}`).textContent = author.name);
-        });
+        allNews = newsItems;
+        filteredNews = [...allNews];
+        renderPage();
       });
 
+    // Render current page
+    function renderPage() {
+      const container = document.getElementById("newsList");
+      container.innerHTML = "";
+
+      const start = (currentPage - 1) * itemsPerPage;
+      const end = start + itemsPerPage;
+      const pageItems = filteredNews.slice(start, end);
+
+      pageItems.forEach(news => {
+        const col = document.createElement("div");
+        col.className = "col-md-6 mb-3";
+        col.innerHTML = `
+          <div class="card shadow h-100">
+            <div class="card-body">
+              <h5 class="card-title">${news.title}</h5>
+              <p class="card-text">By <span id="author-${news.id}"></span></p>
+              <p class="text-muted">Comments: ${news.comments.length}</p>
+              <button class="btn btn-primary btn-sm" onclick="viewDetails(${news.id})">View Details</button>
+              ${news.author_id == loggedUserId ? `
+                <button class="btn btn-warning btn-sm" onclick="editNews(${news.id})">Edit</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteNews(${news.id})">Delete</button>
+              ` : ""}
+            </div>
+          </div>
+        `;
+        container.appendChild(col);
+
+        // Resolve author name
+        fetch(`http://localhost:3000/users/${news.author_id}`)
+          .then(res => res.json())
+          .then(author => document.getElementById(`author-${news.id}`).textContent = author.name);
+      });
+
+      renderPagination();
+    }
+
+    // Render pagination controls
+    function renderPagination() {
+      const totalPages = Math.ceil(filteredNews.length / itemsPerPage);
+      const pagination = document.getElementById("pagination");
+      pagination.innerHTML = "";
+
+      // Previous button
+      const prevLi = document.createElement("li");
+      prevLi.className = `page-item ${currentPage === 1 ? "disabled" : ""}`;
+      prevLi.innerHTML = `<button class="page-link">Previous</button>`;
+      prevLi.addEventListener("click", () => {
+        if (currentPage > 1) {
+          currentPage--;
+          renderPage();
+        }
+      });
+      pagination.appendChild(prevLi);
+
+      // Page numbers
+      for (let i = 1; i <= totalPages; i++) {
+        const li = document.createElement("li");
+        li.className = `page-item ${i === currentPage ? "active" : ""}`;
+        li.innerHTML = `<button class="page-link">${i}</button>`;
+        li.addEventListener("click", () => {
+          currentPage = i;
+          renderPage();
+        });
+        pagination.appendChild(li);
+      }
+
+      // Next button
+      const nextLi = document.createElement("li");
+      nextLi.className = `page-item ${currentPage === totalPages ? "disabled" : ""}`;
+      nextLi.innerHTML = `<button class="page-link">Next</button>`;
+      nextLi.addEventListener("click", () => {
+        if (currentPage < totalPages) {
+          currentPage++;
+          renderPage();
+        }
+      });
+      pagination.appendChild(nextLi);
+    }
+
+    // Filter news by title
+    function filterNews() {
+      const query = document.getElementById("searchInput").value.toLowerCase();
+      filteredNews = allNews.filter(n => n.title.toLowerCase().includes(query));
+      currentPage = 1;
+      renderPage();
+    }
+
+    // Navigation functions
     function viewDetails(id) { window.location.href = `detail.html?id=${id}`; }
     function editNews(id) { window.location.href = `edit.html?id=${id}`; }
     function deleteNews(id) {
