@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Login - News Portal</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light d-flex justify-content-center align-items-center vh-100">
+  <div class="card shadow p-4" style="width: 400px;">
+    <h3 class="text-center mb-3">Login</h3>
+    <div class="mb-3">
+      <label for="userSelect" class="form-label">Select User</label>
+      <select id="userSelect" class="form-select"></select>
+    </div>
+    <button class="btn btn-primary w-100" onclick="login()">Login</button>
+  </div>
+
+  <script>
+    fetch("http://localhost:3000/users")
+      .then(res => res.json())
+      .then(users => {
+        const select = document.getElementById("userSelect");
+        users.forEach(u => {
+          const opt = document.createElement("option");
+          opt.value = u.id;
+          opt.textContent = u.name;
+          select.appendChild(opt);
+        });
+      });
+
+    function login() {
+      const userId = document.getElementById("userSelect").value;
+      localStorage.setItem("loggedInUser", userId);
+      window.location.href = "news.html";
+    }
+  </script>
+</body>
+</html>
