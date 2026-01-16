@@ -1,20 +1,32 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <title>News List</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
+
 <body class="bg-light">
   <!-- Navbar -->
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container-fluid">
       <a class="navbar-brand" href="#">News Portal</a>
       <span class="navbar-text">Logged in as: <span id="loggedUser"></span></span>
-      <button class="btn btn-success ms-auto" onclick="window.location.href='create.html'">Create News</button>
+      <button class="btn btn-success ms-auto me-2" onclick="window.location.href='create.html'">Create News</button>
+      <button class="btn btn-outline-danger" onclick="logout()">Logout</button>
     </div>
   </nav>
+
+  <script>
+    function logout() {
+      localStorage.removeItem("loggedInUser");
+      localStorage.removeItem("userName");
+      localStorage.removeItem("authToken");
+      window.location.href = "index.html";
+    }
+  </script>
 
   <!-- Search + News List -->
   <div class="container mt-4">
@@ -35,65 +47,83 @@
 
   <script>
     const loggedUserId = localStorage.getItem("loggedInUser");
-    let allNews = [];
-    let filteredNews = [];
+    const loggedUserName = localStorage.getItem("userName");
     let currentPage = 1;
+    let totalPages = 1;
     const itemsPerPage = 4;
+    let currentKeyword = "";
 
     // Show logged-in user
-    fetch(`http://localhost:3000/users/${loggedUserId}`)
-      .then(res => res.json())
-      .then(user => document.getElementById("loggedUser").textContent = user.name);
+    if (loggedUserName) {
+      document.getElementById("loggedUser").textContent = loggedUserName;
+    } else {
+      // Fallback or redirect if not logged in
+      document.getElementById("loggedUser").textContent = "User";
+    }
 
-    // Fetch all news
-    fetch("http://localhost:3000/news")
-      .then(res => res.json())
-      .then(newsItems => {
-        allNews = newsItems;
-        filteredNews = [...allNews];
-        renderPage();
-      });
+    // Fetch news with pagination and search
+    function fetchNews(page = 1, keyword = "") {
+      const url = `http://localhost:5000/api/news?page=${page}&limit=${itemsPerPage}&keyword=${keyword}`;
 
-    // Render current page
-    function renderPage() {
+      fetch(url, {
+        headers: {
+          "Authorization": "Bearer " + localStorage.getItem("authToken")
+        }
+      })
+        .then(res => {
+          if (res.status === 401) {
+            alert("Session expired or unauthorized. Please login again.");
+            window.location.href = "index.html";
+            return;
+          }
+          return res.json();
+        })
+        .then(data => {
+          if (!data) return;
+          // data = { news: [], page: 1, pages: 1, total: 6 }
+          renderNews(data.news);
+          currentPage = data.page;
+          totalPages = data.pages;
+          renderPagination();
+        })
+        .catch(err => console.error("Error fetching news:", err));
+    }
+
+    // Initial load
+    fetchNews(currentPage);
+
+    // Render news items
+    function renderNews(newsItems) {
       const container = document.getElementById("newsList");
       container.innerHTML = "";
 
-      const start = (currentPage - 1) * itemsPerPage;
-      const end = start + itemsPerPage;
-      const pageItems = filteredNews.slice(start, end);
-
-      pageItems.forEach(news => {
+      newsItems.forEach(news => {
         const col = document.createElement("div");
         col.className = "col-md-6 mb-3";
+        // Check if author matches logged in user. 
+        // news.author_id is now an object { _id, name, email }
+        const isAuthor = news.author_id._id === loggedUserId || news.author_id.id === loggedUserId; // Handle potential format diffs
+
         col.innerHTML = `
           <div class="card shadow h-100">
             <div class="card-body">
               <h5 class="card-title">${news.title}</h5>
-              <p class="card-text">By <span id="author-${news.id}"></span></p>
+              <p class="card-text">By <span id="author-${news._id}">${news.author_id.name || "Unknown"}</span></p>
               <p class="text-muted">Comments: ${news.comments.length}</p>
-              <button class="btn btn-primary btn-sm" onclick="viewDetails(${news.id})">View Details</button>
-              ${news.author_id == loggedUserId ? `
-                <button class="btn btn-warning btn-sm" onclick="editNews(${news.id})">Edit</button>
-                <button class="btn btn-danger btn-sm" onclick="deleteNews(${news.id})">Delete</button>
+              <button class="btn btn-primary btn-sm" onclick="viewDetails('${news._id}')">View Details</button>
+              ${isAuthor ? `
+                <button class="btn btn-warning btn-sm" onclick="editNews('${news._id}')">Edit</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteNews('${news._id}')">Delete</button>
               ` : ""}
             </div>
           </div>
         `;
         container.appendChild(col);
-
-        // Resolve author name
-        fetch(`http://localhost:3000/users/${news.author_id}`)
-          .then(res => res.json())
-          .then(author => document.getElementById(`author-${news.id}`).textContent = author.name);
       });
-
-      renderPagination();
     }
 
     // Render pagination controls
     function renderPagination() {
-      const totalPages = Math.ceil(filteredNews.length / itemsPerPage);
       const pagination = document.getElementById("pagination");
       pagination.innerHTML = "";
 
@@ -103,32 +133,29 @@
       prevLi.innerHTML = `<button class="page-link">Previous</button>`;
       prevLi.addEventListener("click", () => {
         if (currentPage > 1) {
-          currentPage--;
-          renderPage();
+          fetchNews(currentPage - 1, currentKeyword);
         }
       });
       pagination.appendChild(prevLi);
 
-      // Page numbers
+      // Page numbers - simplified for now (show all or a limited window)
       for (let i = 1; i <= totalPages; i++) {
         const li = document.createElement("li");
         li.className = `page-item ${i === currentPage ? "active" : ""}`;
         li.innerHTML = `<button class="page-link">${i}</button>`;
         li.addEventListener("click", () => {
-          currentPage = i;
-          renderPage();
+          fetchNews(i, currentKeyword);
         });
         pagination.appendChild(li);
       }
 
       // Next button
       const nextLi = document.createElement("li");
-      nextLi.className = `page-item ${currentPage === totalPages ? "disabled" : ""}`;
+      nextLi.className = `page-item ${currentPage >= totalPages ? "disabled" : ""}`;
       nextLi.innerHTML = `<button class="page-link">Next</button>`;
       nextLi.addEventListener("click", () => {
         if (currentPage < totalPages) {
-          currentPage++;
-          renderPage();
+          fetchNews(currentPage + 1, currentKeyword);
         }
       });
       pagination.appendChild(nextLi);
@@ -136,19 +163,33 @@
 
     // Filter news by title
     function filterNews() {
-      const query = document.getElementById("searchInput").value.toLowerCase();
-      filteredNews = allNews.filter(n => n.title.toLowerCase().includes(query));
-      currentPage = 1;
-      renderPage();
+      const query = document.getElementById("searchInput").value;
+      currentKeyword = query;
+      currentPage = 1; // Reset to page 1 on search
+      fetchNews(currentPage, currentKeyword);
     }
 
-    // Navigation functions
+    // Navigation functions (using _id)
     function viewDetails(id) { window.location.href = `detail.html?id=${id}`; }
     function editNews(id) { window.location.href = `edit.html?id=${id}`; }
     function deleteNews(id) {
-      fetch(`http://localhost:3000/news/${id}`, { method: "DELETE" })
-        .then(() => location.reload());
+      if (confirm("Are you sure you want to delete this news?")) {
+        fetch(`http://localhost:5000/api/news/${id}`, {
+          method: "DELETE",
+          headers: {
+            "Authorization": "Bearer " + localStorage.getItem("authToken") // Assuming auth is required
+          }
+        })
+          .then(res => {
+            if (res.ok) {
+              fetchNews(currentPage, currentKeyword);
+            } else {
+              alert("Failed to delete news");
+            }
+          });
+      }
     }
   </script>
 </body>
+
 </html>

@@ -1,18 +1,31 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <title>Create News</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
+
 <body class="bg-light">
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container-fluid">
       <a class="navbar-brand" href="news.html">News Portal</a>
-      <button class="btn btn-outline-light ms-auto" onclick="window.location.href='news.html'">Back to List</button>
+      <button class="btn btn-outline-light ms-auto me-2" onclick="window.location.href='news.html'">Back to
+        List</button>
+      <button class="btn btn-outline-danger" onclick="logout()">Logout</button>
     </div>
   </nav>
+
+  <script>
+    function logout() {
+      localStorage.removeItem("loggedInUser");
+      localStorage.removeItem("userName");
+      localStorage.removeItem("authToken");
+      window.location.href = "index.html";
+    }
+  </script>
 
   <div class="container mt-5">
     <div id="alertBox"></div>
@@ -79,22 +92,27 @@
       const news = {
         title: titleInput.value.trim(),
         body: bodyInput.value.trim(),
-        author_id: parseInt(loggedUserId),
+        // author_id will be handled by backend via token usually, but keeping for compatibility if schema requires
+        author_id: loggedUserId,
         comments: []
       };
 
-      fetch("http://localhost:3000/news", {
+      fetch("http://localhost:5000/api/news", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + localStorage.getItem("authToken")
+        },
         body: JSON.stringify(news)
       })
-      .then(res => {
-        if (!res.ok) throw new Error("Failed to create news");
-        showAlert("success", "News created successfully!");
-        setTimeout(() => window.location.href = "news.html", 1000);
-      })
-      .catch(() => showAlert("danger", "Error creating news."));
+        .then(res => {
+          if (!res.ok) throw new Error("Failed to create news");
+          showAlert("success", "News created successfully!");
+          setTimeout(() => window.location.href = "news.html", 1000);
+        })
+        .catch(() => showAlert("danger", "Error creating news."));
     });
   </script>
 </body>
+
 </html>

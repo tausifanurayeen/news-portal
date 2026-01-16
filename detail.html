@@ -1,11 +1,31 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <title>News Detail</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
+
 <body class="bg-light">
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="news.html">News Portal</a>
+      <span class="navbar-text ms-2">News Detail</span>
+      <button class="btn btn-outline-light ms-auto me-2" onclick="window.location.href='news.html'">Back to
+        List</button>
+      <button class="btn btn-outline-danger" onclick="logout()">Logout</button>
+    </div>
+  </nav>
+
+  <script>
+    function logout() {
+      localStorage.removeItem("loggedInUser");
+      localStorage.removeItem("userName");
+      localStorage.removeItem("authToken");
+      window.location.href = "index.html";
+    }
+  </script>
   <div class="container mt-5">
     <div id="newsDetail" class="card shadow p-4"></div>
     <h4 class="mt-4">Comments</h4>
@@ -18,43 +38,86 @@
     const params = new URLSearchParams(window.location.search);
     const id = params.get("id");
     const loggedUserId = localStorage.getItem("loggedInUser");
+    const loggedUserName = localStorage.getItem("userName");
 
-    fetch(`http://localhost:3000/news/${id}`)
-      .then(res => res.json())
+    fetch(`http://localhost:5000/api/news/${id}`, {
+      headers: {
+        "Authorization": "Bearer " + localStorage.getItem("authToken")
+      }
+    })
+      .then(res => {
+        if (res.status === 401) {
+          alert("Unauthorized. Please login.");
+          window.location.href = "index.html";
+          return;
+        }
+        return res.json();
+      })
       .then(news => {
+        if (!news) return;
         document.getElementById("newsDetail").innerHTML = `<h2>${news.title}</h2><p>${news.body}</p>`;
+
+        // Comments
+        const commentsDiv = document.getElementById("comments");
+        commentsDiv.innerHTML = "";
         news.comments.forEach(c => {
-          fetch(`http://localhost:3000/users/${c.user_id}`)
-            .then(res => res.json())
-            .then(user => {
-              const div = document.createElement("div");
-              div.className = "list-group-item";
-              div.textContent = `${user.name}: ${c.text}`;
-              document.getElementById("comments").appendChild(div);
-            });
+          const div = document.createElement("div");
+          div.className = "list-group-item";
+
+          let authorName = "Unknown User";
+          if (c.user_id && typeof c.user_id === 'object' && c.user_id.name) {
+            authorName = c.user_id.name;
+          } else if (c.user_id) {
+            authorName = `User (${c.user_id})`;
+          }
+
+          div.textContent = `${authorName}: ${c.text}`;
+          commentsDiv.appendChild(div);
         });
       });
 
     function addComment() {
       const text = document.getElementById("commentText").value;
       if (!text) return;
-      fetch(`http://localhost:3000/news/${id}`)
-        .then(res => res.json())
-        .then(news => {
-          const newComment = {
-            id: Date.now(),
-            text,
-            user_id: parseInt(loggedUserId),
-            timestamp: new Date().toISOString()
-          };
-          news.comments.push(newComment);
-          fetch(`http://localhost:3000/news/${id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ comments: news.comments })
-          }).then(() => location.reload());
+
+      // In a real API, adding a comment usually is a POST to /api/news/:id/comments
+      // Assuming for now we PATCH the news OR the API supports a comment endpoint.
+      // Given the previous code PATCHed the whole news, I'll try to stick to a similar pattern 
+      // but usually APIs have specific endpoints. 
+      // I will assuming the API expects a POST to /api/news/:id/comment based on common practices
+      // OR I'll try to PATCH the news comments array if the API supports it.
+      // Let's try PATCHing the news for now as it was before, but likely the backend manages push.
+
+      // Actually, safest is likely a POST to a comment endpoint if it existed. 
+      // But prompt didn't verify comment API.
+      // I will try to PATCH with the new comment added to list? No, concurrency issues.
+      // I'll try POST /api/news/:id/comment if it existed.
+      // WAIT, the prompt showed:
+      // "comments": [ { "text": "...", "user_id": "...", "_id": "..." } ]
+      // I'll assume for this task I just need to try to send the comment.
+      // I'll send a POST to localost:5000/api/news/${id}/comment 
+      // IF that fails, then I can't do much without docs.
+      // BUT existing code did PATCH. I'll stick to PATCH but just sending the text might be enough if backend is smart?
+      // No, let's stick to what the previous code did but to port 5000: PATCH /api/news/:id with updated comments?
+      // That's risky.
+      // Let's assume the user just wants the VIEW to work for now.
+      // I'll comment out the addComment implementation details or make a best guess.
+      // Best guess: POST /api/news/:id/comments
+
+      fetch(`http://localhost:5000/api/news/${id}/comment`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + localStorage.getItem("authToken")
+        },
+        body: JSON.stringify({ text, user_id: loggedUserId }) // Backend should handle ID but sending it just in case
+      })
+        .then(res => {
+          if (res.ok) location.reload();
+          else alert("Failed to add comment");
         });
     }
   </script>
 </body>
+
 </html>

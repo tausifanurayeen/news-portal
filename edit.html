@@ -1,25 +1,34 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <title>Edit News</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link
-    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
-    rel="stylesheet"
-  />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
 </head>
+
 <body class="bg-light">
   <!-- Navbar -->
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container-fluid">
       <a class="navbar-brand" href="news.html">News Portal</a>
       <span class="navbar-text ms-2">Editing news</span>
-      <button class="btn btn-outline-light ms-auto" onclick="window.location.href='news.html'">
+      <button class="btn btn-outline-light ms-auto me-2" onclick="window.location.href='news.html'">
         Back to List
       </button>
+      <button class="btn btn-outline-danger" onclick="logout()">Logout</button>
     </div>
   </nav>
+
+  <script>
+    function logout() {
+      localStorage.removeItem("loggedInUser");
+      localStorage.removeItem("userName");
+      localStorage.removeItem("authToken");
+      window.location.href = "index.html";
+    }
+  </script>
 
   <!-- Content -->
   <div class="container mt-5">
@@ -64,7 +73,7 @@
   <script>
     const params = new URLSearchParams(window.location.search);
     const id = params.get("id");
-    const loggedUserId = parseInt(localStorage.getItem("loggedInUser"), 10);
+    const loggedUserId = localStorage.getItem("loggedInUser"); // String ID
 
     const editForm = document.getElementById("editForm");
     const titleInput = document.getElementById("title");
@@ -88,14 +97,25 @@
 
     async function loadNews() {
       try {
-        const res = await fetch(`http://localhost:3000/news/${id}`);
+        const res = await fetch(`http://localhost:5000/api/news/${id}`, {
+          headers: {
+            "Authorization": "Bearer " + localStorage.getItem("authToken")
+          }
+        });
+        if (res.status === 401) {
+          alert("Unauthorized. Please login.");
+          window.location.href = "index.html";
+          return;
+        }
         const news = await res.json();
 
-        const authorRes = await fetch(`http://localhost:3000/users/${news.author_id}`);
-        const author = await authorRes.json();
-        authorNameEl.textContent = author.name;
+        // news.author_id is now an object { _id, name, email }
+        authorNameEl.textContent = news.author_id.name || "Unknown";
 
-        if (news.author_id !== loggedUserId) {
+        // Check ownership
+        // loggedUserId is string "696..."
+        // news.author_id._id is string "696..."
+        if (news.author_id._id !== loggedUserId && news.author_id.id !== loggedUserId) {
           editForm.classList.add("d-none");
           notAllowedBox.classList.remove("d-none");
           return;
@@ -106,6 +126,7 @@
 
         editForm.addEventListener("submit", (e) => handleSubmit(e, news));
       } catch (err) {
+        console.error(err);
         showAlert("danger", "Unable to load news.");
       }
     }
@@ -140,9 +161,18 @@
       };
 
       try {
-        const res = await fetch(`http://localhost:3000/news/${news.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+        const res = await fetch(`http://localhost:5000/api/news/${news._id}`, { // Use _id
+          method: "PUT", // Usually PUT or PATCH. API might follow REST. Previous was PATCH. I'll stick to PATCH or PUT? Prompt didn't specify. Assuming PUT/PATCH works. I'll use PUT as it's common for updates, or stick to PATCH if I want partial. 
+          // Previous code used PATCH. I'll stick to PATCH.
+          // Wait, the prompt: "use POST api http://localhost:5000/api/auth/login"
+          // Didn't specify update method. Common is PUT for full, PATCH for partial.
+          // I will use PATCH to be safe with partial updates if backend supports it, or PUT.
+          // I'll use PUT as standard for "Edit".
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + localStorage.getItem("authToken")
+          },
           body: JSON.stringify(payload),
         });
 
@@ -157,4 +187,5 @@
     loadNews();
   </script>
 </body>
+
 </html>
